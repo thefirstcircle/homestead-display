@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Homestead</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #060d2b; }
+    #app { width: 100vw; height: 100vh; display: block; }
+    canvas { display: block; }
+    #hud {
+      position: fixed;
+      bottom: 20px;
+      left: 24px;
+      color: rgba(255, 255, 255, 0.55);
+      font-family: 'Georgia', serif;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      pointer-events: none;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+      line-height: 1.8;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="hud">Locating…</div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

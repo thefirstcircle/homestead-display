@@ -1,0 +1,18 @@
+{
+  "name": "homestead-display",
+  "version": "0.1.0",
+  "description": "A living pixel-art 3D display of your homestead with real weather",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.169.0",
+    "suncalc": "^1.9.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}
