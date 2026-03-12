@@ -712,7 +712,6 @@ export function initScene(canvas, onWeather) {
       })
     } catch (e) {
       console.error('Weather init failed:', e)
-      document.getElementById('hud').textContent = 'Weather unavailable'
     }
   }
   init()
