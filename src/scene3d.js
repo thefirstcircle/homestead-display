@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import SunCalc from 'suncalc'
 import { resolveLocation, startWeatherPolling } from './weather-client.js'
 import { config } from './config.js'
+import { setWeatherAudio } from './ambient-audio.js'
 
 const TAU = Math.PI * 2
 
@@ -532,6 +533,62 @@ function updateLightning(lights, dt, weatherState) {
   }
 }
 
+// ─── Distant airplane ─────────────────────────────────────────────────────────
+
+function buildAirplane(scene) {
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0]), 3))
+  const mat = new THREE.PointsMaterial({
+    color: 0xff2200,
+    size: 0.22,           // ~2 px at internal 320×180 res, distance ~18 units
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0,
+  })
+  const points = new THREE.Points(geo, mat)
+  points.visible = false
+  scene.add(points)
+  return { points, mat, x: 0, y: 8, z: -16, dir: 1, speed: 1.2, active: false, nextSpawn: 30 + Math.random() * 90 }
+}
+
+function updateAirplane(plane, dt, elapsed, isNight) {
+  if (!isNight) {
+    plane.points.visible = false
+    plane.active = false
+    return
+  }
+
+  if (!plane.active) {
+    plane.nextSpawn -= dt
+    if (plane.nextSpawn > 0) return
+    plane.dir   = Math.random() > 0.5 ? 1 : -1
+    plane.x     = plane.dir > 0 ? -34 : 34
+    plane.y     = 3.0 + Math.random() * 1.5     // y 3.0–4.5, just above treeline
+    plane.z     = -10 - Math.random() * 6        // z -10 to -16, far horizon
+    plane.speed = 0.9 + Math.random() * 0.8      // crosses in ~35–55 s
+    plane.active = true
+    plane.points.visible = true
+    return
+  }
+
+  // Move
+  plane.x += plane.dir * plane.speed * dt
+  const pos = plane.points.geometry.attributes.position
+  pos.setXYZ(0, plane.x, plane.y, plane.z)
+  pos.needsUpdate = true
+
+  // Anti-collision beacon: double-flash every 1.4 s
+  const t = elapsed % 1.4
+  plane.mat.opacity = (t < 0.07 || (t > 0.16 && t < 0.23)) ? 1.0 : 0.0
+
+  // Retire when off screen
+  if (Math.abs(plane.x) > 36) {
+    plane.active = false
+    plane.points.visible = false
+    plane.nextSpawn = 60 + Math.random() * 150   // 1–3.5 min until next pass
+  }
+}
+
 // ─── Camera ───────────────────────────────────────────────────────────────────
 
 const DEFAULT_CAM = new THREE.Vector3(0, 2.2, 5.5)
@@ -641,6 +698,7 @@ export function initScene(canvas, onWeather) {
   })
 
   buildTrees(scene)
+  const airplane  = buildAirplane(scene)
   const rain      = buildRain(scene)
   const snow      = buildSnow(scene)
   const fog       = buildFog(scene)
@@ -694,6 +752,7 @@ export function initScene(canvas, onWeather) {
     updateSnow(snow, dt, weatherState.snowIntensity ?? 0, elapsed)
     updateFog(fog, weatherState.state)
     updateLightning(lights, dt, weatherState.state)
+    updateAirplane(airplane, dt, elapsed, sunPos.altitude < -0.05)
     updateCamera(camera, controls, elapsed, dt, interactionState)
 
     renderer.render(scene, camera)
@@ -708,6 +767,7 @@ export function initScene(canvas, onWeather) {
       startWeatherPolling(lat, lon, w => {
         weatherState = w
         updateHud(w)
+        setWeatherAudio(w.state)
         onWeather?.(w)
       })
     } catch (e) {

@@ -185,6 +185,29 @@
       color: #445566;
       font-style: italic;
     }
+
+    /* ── Volume knob widget (lower right) ── */
+    #vol-widget {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      opacity: 0.35;
+      transition: opacity 0.2s ease;
+      pointer-events: auto;
+    }
+    #vol-widget:hover { opacity: 0.9; }
+
+    .vol-pct {
+      font-family: 'Press Start 2P', 'Courier New', monospace;
+      font-size: 6px;
+      color: #66bb6a;
+      text-shadow: 0 0 6px rgba(102,187,106,0.6);
+    }
   </style>
 </head>
 <body>

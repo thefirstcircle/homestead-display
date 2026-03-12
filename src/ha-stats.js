@@ -8,6 +8,7 @@
 // ── Config ────────────────────────────────────────────────────────────────────
 
 import { config } from './config.js'
+import { setVolume, getVolume } from './ambient-audio.js'
 
 const RSS_FEEDS = [
   { id: 'us',        label: 'US NEWS',    url: 'https://rss.nytimes.com/services/xml/rss/nyt/US.xml'       },
@@ -92,6 +93,98 @@ function startRSSPolling() {
   })
 }
 
+// ── Rotary knob ───────────────────────────────────────────────────────────────
+
+function createKnob(initial, onChange) {
+  const SIZE = 34
+  // Canvas angles (0 = right / 3 o'clock, clockwise positive)
+  // 7 o'clock = 120°, 5 o'clock = 60°; sweep 300° clockwise through top
+  const MIN_ANG = (2 * Math.PI) / 3   // 120° — 7 o'clock (min position)
+  const SWEEP   = (5 * Math.PI) / 3   // 300° total arc
+
+  const canvas = document.createElement('canvas')
+  canvas.width  = SIZE
+  canvas.height = SIZE
+  canvas.style.cssText = 'cursor:ns-resize; image-rendering:pixelated; display:block;'
+
+  let value = Math.max(0, Math.min(1, initial))
+
+  function draw() {
+    const ctx = canvas.getContext('2d')
+    const cx = SIZE / 2
+    const cy = SIZE / 2
+    const R  = SIZE / 2 - 2
+
+    ctx.clearRect(0, 0, SIZE, SIZE)
+
+    // Body
+    ctx.beginPath()
+    ctx.arc(cx, cy, R, 0, Math.PI * 2)
+    ctx.fillStyle = '#0d1428'
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(80,110,200,0.45)'
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+
+    // Track arc (full 300° range)
+    ctx.beginPath()
+    ctx.arc(cx, cy, R - 3, MIN_ANG, MIN_ANG + SWEEP)
+    ctx.strokeStyle = 'rgba(100,140,230,0.18)'
+    ctx.lineWidth = 2.5
+    ctx.stroke()
+
+    // Value arc
+    const valAng = MIN_ANG + value * SWEEP
+    if (value > 0.001) {
+      ctx.beginPath()
+      ctx.arc(cx, cy, R - 3, MIN_ANG, valAng)
+      ctx.strokeStyle = '#66bb6a'
+      ctx.lineWidth = 2.5
+      ctx.stroke()
+    }
+
+    // Indicator tick at current position
+    ctx.beginPath()
+    ctx.moveTo(cx + Math.cos(valAng) * (R - 8), cy + Math.sin(valAng) * (R - 8))
+    ctx.lineTo(cx + Math.cos(valAng) * (R - 2), cy + Math.sin(valAng) * (R - 2))
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+  }
+
+  draw()
+
+  // ── Drag interaction (vertical: drag up = louder) ──
+  let dragStartY = null
+  let dragStartVal = 0
+
+  const onDown = (y) => { dragStartY = y; dragStartVal = value }
+  const onMove = (y) => {
+    if (dragStartY == null) return
+    value = Math.max(0, Math.min(1, dragStartVal + (dragStartY - y) / 80))
+    draw()
+    onChange(value)
+  }
+  const onUp = () => { dragStartY = null }
+
+  canvas.addEventListener('mousedown',  e => { onDown(e.clientY); e.preventDefault() })
+  canvas.addEventListener('touchstart', e => { onDown(e.touches[0].clientY); e.preventDefault() }, { passive: false })
+  window.addEventListener('mousemove',  e => onMove(e.clientY))
+  window.addEventListener('touchmove',  e => { onMove(e.touches[0].clientY); e.preventDefault() }, { passive: false })
+  window.addEventListener('mouseup',  onUp)
+  window.addEventListener('touchend', onUp)
+
+  // Scroll wheel
+  canvas.addEventListener('wheel', e => {
+    value = Math.max(0, Math.min(1, value - e.deltaY / 500))
+    draw()
+    onChange(value)
+    e.preventDefault()
+  }, { passive: false })
+
+  return canvas
+}
+
 // ── Panel build ───────────────────────────────────────────────────────────────
 
 export function initStats() {
@@ -139,6 +232,22 @@ export function initStats() {
   `
 
   document.body.appendChild(panel)
+
+  // Floating volume knob — lower right corner
+  const volWidget = document.createElement('div')
+  volWidget.id = 'vol-widget'
+  const pct = document.createElement('span')
+  pct.id = 'vol-pct'
+  pct.className = 'vol-pct'
+  pct.textContent = `${Math.round(getVolume() * 100)}%`
+  const knob = createKnob(getVolume(), v => {
+    setVolume(v)
+    pct.textContent = `${Math.round(v * 100)}%`
+  })
+  volWidget.appendChild(knob)
+  volWidget.appendChild(pct)
+  document.body.appendChild(volWidget)
+
   startRSSPolling()
 }
 
