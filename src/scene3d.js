@@ -533,6 +533,73 @@ function updateLightning(lights, dt, weatherState) {
   }
 }
 
+// ─── Chimney smoke ────────────────────────────────────────────────────────────
+
+const CHIMNEY_POS = { x: 0.7, y: 3.44, z: -0.2 }  // top of chimney cap
+
+function buildSmoke(scene) {
+  const N   = 28
+  const pos = new Float32Array(N * 3)
+  const age = new Float32Array(N)    // negative = pre-spawn delay
+  const max = new Float32Array(N)
+  const vx  = new Float32Array(N)
+  const vz  = new Float32Array(N)
+
+  function reset(i, delay) {
+    pos[i*3]   = CHIMNEY_POS.x + (Math.random() - 0.5) * 0.12
+    pos[i*3+1] = CHIMNEY_POS.y
+    pos[i*3+2] = CHIMNEY_POS.z + (Math.random() - 0.5) * 0.12
+    age[i]     = delay ?? 0
+    max[i]     = 3.5 + Math.random() * 2.5
+    vx[i]      = (Math.random() - 0.45) * 0.06   // slight prevailing drift
+    vz[i]      = (Math.random() - 0.5)  * 0.06
+  }
+
+  // Stagger initial spawns so puffs don't all appear at once
+  for (let i = 0; i < N; i++) reset(i, -Math.random() * 5)
+
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+
+  const mat = new THREE.PointsMaterial({
+    color: 0xbbbbaa,
+    size: 0.18,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0.45,
+    depthWrite: false,
+  })
+
+  const points = new THREE.Points(geo, mat)
+  points.visible = false
+  scene.add(points)
+
+  return { points, mat, pos, age, max, vx, vz, N, reset }
+}
+
+function updateSmoke(smoke, dt, tempC) {
+  const cold = tempC != null && tempC < 10
+  if (!cold) { smoke.points.visible = false; return }
+  smoke.points.visible = true
+
+  const { pos, age, max, vx, vz, N, reset } = smoke
+
+  for (let i = 0; i < N; i++) {
+    age[i] += dt
+    if (age[i] < 0) continue           // pre-spawn delay
+    if (age[i] > max[i]) { reset(i); continue }
+
+    const riseSpeed = 0.25 + age[i] * 0.04   // accelerates as it rises
+    pos[i*3]   += vx[i] * dt
+    pos[i*3+1] += riseSpeed * dt
+    pos[i*3+2] += vz[i] * dt
+  }
+
+  smoke.points.geometry.attributes.position.needsUpdate = true
+  // Denser smoke when colder
+  smoke.mat.opacity = Math.max(0.15, Math.min(0.55, (10 - tempC) / 18))
+}
+
 // ─── Distant airplane ─────────────────────────────────────────────────────────
 
 function buildAirplane(scene) {
@@ -698,6 +765,7 @@ export function initScene(canvas, onWeather) {
   })
 
   buildTrees(scene)
+  const smoke     = buildSmoke(scene)
   const airplane  = buildAirplane(scene)
   const rain      = buildRain(scene)
   const snow      = buildSnow(scene)
@@ -752,6 +820,7 @@ export function initScene(canvas, onWeather) {
     updateSnow(snow, dt, weatherState.snowIntensity ?? 0, elapsed)
     updateFog(fog, weatherState.state)
     updateLightning(lights, dt, weatherState.state)
+    updateSmoke(smoke, dt, weatherState.tempC)
     updateAirplane(airplane, dt, elapsed, sunPos.altitude < -0.05)
     updateCamera(camera, controls, elapsed, dt, interactionState)
 
