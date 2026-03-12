@@ -25,6 +25,8 @@ export const config = {
     // Base pixel-art resolution. Scales up to fill screen with integer zoom.
     width: 320,
     height: 180,
+    // Name shown at the top of the left stats panel
+    siteName: 'bondstreet.dev',
   },
   homeAssistant: null,
 }

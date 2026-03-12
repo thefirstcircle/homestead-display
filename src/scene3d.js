@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import SunCalc from 'suncalc'
 import { resolveLocation, startWeatherPolling } from './weather-client.js'
 import { config } from './config.js'
@@ -206,7 +207,7 @@ function updateClouds({ meshes, mat }, dt, weatherState, sunElevRad) {
 
 function buildGround(scene) {
   const geo = new THREE.PlaneGeometry(30, 20)
-  const mat = new THREE.MeshLambertMaterial({ color: 0x5c8a30 })
+  const mat = new THREE.MeshLambertMaterial({ color: 0x5c8a30, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 })
   const mesh = new THREE.Mesh(geo, mat)
   mesh.rotation.x = -Math.PI / 2
   mesh.position.y = 0
@@ -337,11 +338,11 @@ function updateHouseNight({ winMeshes, winLight }, lat, lon) {
   const sun = SunCalc.getPosition(new Date(), lat, lon)
   const isNight = sun.altitude < -0.05
   winMeshes.forEach(m => {
-    m.material.emissive.setHex(isNight ? 0xffc87a : 0x000000)
+    m.material.emissive?.setHex(isNight ? 0xffc87a : 0x000000)
     m.material.emissiveIntensity = isNight ? 0.7 : 0
     m.material.color.setHex(isNight ? 0xfffde7 : 0xadd8e6)
   })
-  winLight.intensity = isNight ? 1.5 : 0
+  if (winLight) winLight.intensity = isNight ? 1.5 : 0
 }
 
 // ─── Trees ────────────────────────────────────────────────────────────────────
@@ -600,7 +601,7 @@ function updateHud(weather) {
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
 
-export function initScene(canvas) {
+export function initScene(canvas, onWeather) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false })
   renderer.setPixelRatio(1)
   renderer.setSize(config.display.width, config.display.height, false)
@@ -616,7 +617,29 @@ export function initScene(canvas) {
   buildHills(scene)
   const clouds    = buildClouds(scene)
   const ground    = buildGround(scene)
-  const house     = buildHouse(scene)
+  // House — load real GLB model, fall back to procedural if missing
+  let house = { winMeshes: [], winLight: new THREE.PointLight(0xffcc66, 0, 5) }
+  house.winLight.position.set(0, 1.2, 1.5)
+  scene.add(house.winLight)
+
+  const loader = new GLTFLoader()
+  loader.load('./bondstreet.glb', (gltf) => {
+    const model = gltf.scene
+    model.scale.setScalar(0.3)
+    model.position.set(1.5, 0, 0)   // shift right to center the 3-section complex
+    scene.add(model)
+    // Collect glass meshes for night emissive glow
+    model.traverse(child => {
+      if (child.isMesh && child.material?.name?.toLowerCase().includes('glass')) {
+        child.material = child.material.clone()  // own copy so we can mutate
+        house.winMeshes.push(child)
+      }
+    })
+  }, undefined, (err) => {
+    console.warn('bondstreet.glb not found, using procedural house:', err)
+    house = buildHouse(scene)
+  })
+
   buildTrees(scene)
   const rain      = buildRain(scene)
   const snow      = buildSnow(scene)
@@ -685,6 +708,7 @@ export function initScene(canvas) {
       startWeatherPolling(lat, lon, w => {
         weatherState = w
         updateHud(w)
+        onWeather?.(w)
       })
     } catch (e) {
       console.error('Weather init failed:', e)
