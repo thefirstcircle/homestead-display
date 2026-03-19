@@ -535,7 +535,7 @@ function updateLightning(lights, dt, weatherState) {
 
 // ─── Chimney smoke ────────────────────────────────────────────────────────────
 
-const CHIMNEY_POS = { x: 0.7, y: 3.44, z: -0.2 }  // top of chimney cap
+const CHIMNEY_POS = { x: 2.2, y: 2.50, z: -0.1 }  // top of chimney cap
 
 function buildSmoke(scene) {
   const N   = 28
@@ -740,7 +740,7 @@ export function initScene(canvas, onWeather) {
   const celest    = buildCelestials(scene)
   buildHills(scene)
   const clouds    = buildClouds(scene)
-  const ground    = buildGround(scene)
+  //const ground    = buildGround(scene)
   // House — load real GLB model, fall back to procedural if missing
   let house = { winMeshes: [], winLight: new THREE.PointLight(0xffcc66, 0, 5) }
   house.winLight.position.set(0, 1.2, 1.5)
