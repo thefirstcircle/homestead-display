@@ -150,10 +150,21 @@
       cursor: pointer;
       transition: filter 0.15s ease;
       image-rendering: pixelated;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
     .ql-badge:hover { filter: brightness(1.5); }
 
-    /* ── RSS headlines ── */
+    .ql-dot {
+      width: 6px;
+      height: 6px;
+      flex-shrink: 0;
+      background: #334455;
+      transition: background 0.4s ease, box-shadow 0.4s ease;
+    }
+
+/* ── RSS headlines ── */
     .rss-list {
       list-style: none;
       margin: 0;

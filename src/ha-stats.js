@@ -19,11 +19,58 @@ const RSS_FEEDS = [
 const GH_ICON = `<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" style="vertical-align:middle;margin-right:4px;display:inline-block"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>`
 
 const QUICK_LINKS = [
-  { label: 'HOME ASSISTANT', href: 'https://ha.bondstreet.dev',                                color: '#ff7043', glow: 'rgba(255,112,67,0.35)'  },
-  { label: 'VDI',            href: 'https://vdi.bondstreet.dev/guacamole/#/',                   color: '#29b6f6', glow: 'rgba(41,182,246,0.35)'  },
-  { label: 'CODE',           href: 'https://code.bondstreet.dev',                               color: '#66bb6a', glow: 'rgba(102,187,106,0.35)' },
+  { label: 'HOME ASSISTANT', href: 'https://ha.bondstreet.dev',                                color: '#ff7043', glow: 'rgba(255,112,67,0.35)',  statusKey: '_home-assistant' },
+  { label: 'VDI',            href: 'https://vdi.bondstreet.dev/guacamole/#/',                   color: '#29b6f6', glow: 'rgba(41,182,246,0.35)',  statusKey: '_guacamole'      },
+  { label: 'CODE',           href: 'https://code.bondstreet.dev',                               color: '#66bb6a', glow: 'rgba(102,187,106,0.35)', statusKey: '_code-server'    },
   { label: 'GITHUB',         href: 'https://github.com/thefirstcircle/homestead-display',       color: '#e0e0e0', glow: 'rgba(224,224,224,0.20)', icon: GH_ICON },
 ]
+
+// ── Service status polling ─────────────────────────────────────────────────────
+
+const STATUS_URL        = 'https://status-proxy.bondstreet.dev/'
+const STATUS_REFRESH_MS = 60 * 1000
+
+async function fetchStatuses() {
+  try {
+    const res = await fetch(STATUS_URL, { cache: 'no-store' })
+    const data = await res.json()
+    return Object.fromEntries(
+      data.map(svc => {
+        const last = svc.results[svc.results.length - 1]
+        return [svc.key, last?.success ?? false]
+      })
+    )
+  } catch (err) {
+    console.warn('[status-proxy] fetch failed:', err)
+    return null
+  }
+}
+
+function applyStatuses(statuses) {
+  if (!statuses) return
+  document.querySelectorAll('[data-status-key]').forEach(badge => {
+    const key = badge.dataset.statusKey
+    if (!key) return
+    const up  = statuses[key]
+    const dot = badge.querySelector('.ql-dot')
+    if (up) {
+      const glow  = badge.dataset.glow
+      const color = badge.dataset.color
+      badge.style.boxShadow   = `0 0 8px ${glow}, inset 0 0 8px ${glow}`
+      badge.style.borderColor = `${color}55`
+      if (dot) { dot.style.background = '#66bb6a'; dot.style.boxShadow = '0 0 4px #66bb6a' }
+    } else {
+      badge.style.boxShadow   = '0 0 8px rgba(255,82,82,0.5), inset 0 0 8px rgba(255,82,82,0.2)'
+      badge.style.borderColor = '#ff525288'
+      if (dot) { dot.style.background = '#ff5252'; dot.style.boxShadow = '0 0 4px #ff5252' }
+    }
+  })
+}
+
+function startStatusPolling() {
+  fetchStatuses().then(applyStatuses)
+  setInterval(() => fetchStatuses().then(applyStatuses), STATUS_REFRESH_MS)
+}
 
 const HEADLINES_PER_FEED = 5
 const RSS_REFRESH_MS     = 30 * 60 * 1000   // 30 min
@@ -197,8 +244,9 @@ export function initStats() {
        href="${l.href}"
        target="_blank"
        rel="noopener"
+       ${l.statusKey ? `data-status-key="${l.statusKey}" data-glow="${l.glow}" data-color="${l.color}"` : ''}
        style="color:${l.color}; box-shadow: 0 0 8px ${l.glow}, inset 0 0 8px ${l.glow}; border-color:${l.color}55;">
-      ${l.icon ?? ''}${l.label}
+      ${l.statusKey ? '<span class="ql-dot"></span>' : ''}${l.icon ?? ''}${l.label}
     </a>`).join('')
 
   // RSS sections
@@ -249,6 +297,7 @@ export function initStats() {
   document.body.appendChild(volWidget)
 
   startRSSPolling()
+  startStatusPolling()
 }
 
 // ── Live update helpers ───────────────────────────────────────────────────────
